@@ -6,12 +6,27 @@ import { supabase } from './db.js';
 import { el, toast } from './utils.js';
 
 export async function ensureAuthenticated() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) return session;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) return session;
+  } catch (err) {
+    // Sin señal: getSession() puede fallar si intenta refrescar el token
+    // contra la red. Si ya había una sesión guardada en este dispositivo de
+    // un login anterior, la dejamos pasar igual — no tiene sentido bloquear
+    // a alguien que ya iba a trabajar offline por no poder confirmar el
+    // token contra un servidor al que no puede llegar.
+    if (hasCachedSession()) return { offline: true };
+  }
+
+  if (!navigator.onLine && hasCachedSession()) return { offline: true };
 
   return new Promise((resolve) => {
     renderLoginOverlay(resolve);
   });
+}
+
+function hasCachedSession() {
+  return Object.keys(localStorage).some((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
 }
 
 function renderLoginOverlay(onSuccess) {
@@ -40,6 +55,13 @@ function renderLoginOverlay(onSuccess) {
     submitBtn.textContent = 'Ingresando...';
     submitBtn.disabled = true;
     errorMsg.textContent = '';
+
+    if (!navigator.onLine) {
+      errorMsg.textContent = 'Sin conexión: el primer ingreso necesita señal para verificar tu cuenta. Vuelve a intentar cuando tengas datos o wifi.';
+      submitBtn.textContent = 'Ingresar';
+      submitBtn.disabled = false;
+      return;
+    }
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: emailInput.value,
