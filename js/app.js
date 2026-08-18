@@ -2,6 +2,7 @@
 // app.js — Orquestador principal / router de vistas
 // ============================================================================
 import { DB } from './db.js';
+import { initSync, onStatusChange } from './sync.js';
 import { ensureAuthenticated, logout } from './auth.js';
 import { toast } from './utils.js';
 import { renderDashboard } from './views/dashboard.js';
@@ -44,23 +45,48 @@ function initNav() {
   if (logoutBtn) logoutBtn.addEventListener('click', logout);
 }
 
+function initSyncBadge() {
+  const badge = document.getElementById('sync-status');
+  if (!badge) return;
+  onStatusChange((status) => {
+    badge.classList.remove('sync-ok', 'sync-offline', 'sync-pending');
+    if (!status.online) {
+      badge.textContent = status.pending > 0
+        ? `Sin conexión · ${status.pending} cambio${status.pending === 1 ? '' : 's'} pendiente${status.pending === 1 ? '' : 's'}`
+        : 'Sin conexión · trabajando local';
+      badge.classList.add('sync-offline');
+    } else if (status.syncing || status.pending > 0) {
+      badge.textContent = `Sincronizando · ${status.pending} pendiente${status.pending === 1 ? '' : 's'}`;
+      badge.classList.add('sync-pending');
+    } else {
+      badge.textContent = 'Sincronizado · Supabase';
+      badge.classList.add('sync-ok');
+    }
+  });
+}
+
 async function boot() {
   await ensureAuthenticated();
 
   try {
     await DB.seedIfEmpty();
   } catch (err) {
-    toast('No se pudo conectar a Supabase. Revisa js/supabaseConfig.js', 'error');
+    toast('No se pudo preparar los datos locales.', 'error');
     console.error(err);
   }
 
   initNav();
+  initSyncBadge();
 
   const initial = (window.location.hash || '#dashboard').replace('#', '');
   navigate(VIEWS[initial] ? initial : 'dashboard');
 
-  // Sincronización en vivo: si otro dispositivo carga/despacha/descarga un
-  // viaje, o edita tractores/columnas/líneas, esta vista se refresca sola.
+  // Motor de sincronización: pull inicial si hay señal, cola de reintentos,
+  // y Realtime para reflejar cambios de otros dispositivos.
+  initSync();
+
+  // Cada vez que el espejo local cambia (por sync o por Realtime), refresca
+  // la vista actual para que se vea al instante.
   DB.subscribeRealtime(() => {
     if (VIEWS[currentView]) VIEWS[currentView](root);
   });
