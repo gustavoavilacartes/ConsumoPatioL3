@@ -44,8 +44,8 @@ export async function renderCarga(root) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const tractorId = Number(tractorSel.value);
-    const columnaId = Number(columnaSel.value);
+    const tractorId = tractorSel.value;
+    const columnaId = columnaSel.value;
     const volumen = parseFloat(document.getElementById('carga-volumen').value);
     const obs = document.getElementById('carga-obs').value;
     if (!tractorId || !columnaId || !volumen || volumen <= 0) return;
