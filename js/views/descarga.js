@@ -22,7 +22,7 @@ export async function renderDescarga(root) {
 
   root.querySelectorAll('[data-descargar]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const viajeId = Number(btn.dataset.descargar);
+      const viajeId = btn.dataset.descargar;
       const volInput = document.getElementById(`vol-desc-${viajeId}`);
       const volumen = parseFloat(volInput.value);
       if (!volumen || volumen <= 0) { toast('Ingresa el volumen descargado', 'error'); return; }
