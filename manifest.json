@@ -1,0 +1,22 @@
+{
+  "name": "Patio Madera ARAUCO — Control de Flujo",
+  "short_name": "Patio ARAUCO",
+  "description": "Control de consumo de patio de madera ARAUCO: grúa carga tractor en columna, tractor transporta a línea, descarga libera al tractor.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f1f16",
+  "background_color": "#0a1712",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
+  ],
+  "categories": ["productivity", "business"],
+  "shortcuts": [
+    { "name": "Carga", "short_name": "Carga", "url": "./index.html#carga", "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Tractor", "short_name": "Tractor", "url": "./index.html#tractor", "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Descarga", "short_name": "Descarga", "url": "./index.html#descarga", "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
