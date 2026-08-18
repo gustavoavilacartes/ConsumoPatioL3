@@ -36,8 +36,8 @@ export async function renderTractor(root) {
 
   root.querySelectorAll('[data-despachar]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const viajeId = Number(btn.dataset.despachar);
-      const lineaId = Number(btn.dataset.linea);
+      const viajeId = btn.dataset.despachar;
+      const lineaId = btn.dataset.linea;
       const [viaje, linea] = await Promise.all([
         DB.getById(DB.STORES.VIAJES, viajeId),
         DB.getById(DB.STORES.LINEAS, lineaId),
