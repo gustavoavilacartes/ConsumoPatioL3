@@ -1,15 +1,18 @@
+
 // ============================================================================
 // sw.js — Service Worker: Cache-First para assets estáticos
 // Usa rutas relativas al scope del SW para funcionar tanto en la raíz de un
 // dominio como en un subpath de GitHub Pages (usuario.github.io/repo/).
 // ============================================================================
-const CACHE_NAME = 'patio-arauco-v4';
+const CACHE_NAME = 'patio-arauco-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
   './js/db.js',
+  './js/localdb.js',
+  './js/sync.js',
   './js/auth.js',
   './js/supabaseConfig.js',
   './js/utils.js',
