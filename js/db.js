@@ -1,19 +1,22 @@
 // ============================================================================
-// db.js — Capa de persistencia (Supabase / Postgres)
+// db.js — Interfaz pública de datos (offline-first)
 // Patio Madera ARAUCO
 //
-// Reemplaza la versión anterior basada en IndexedDB local por Supabase, para
-// que todos los dispositivos lean y escriban la misma base en la nube.
-// Mantiene la MISMA interfaz pública (STORES, getAll, getById, getByIndex,
-// add, put, remove, seedIfEmpty, nextFolio) para que las vistas no requieran
-// cambios.
+// Las vistas (carga.js, tractor.js, descarga.js, etc.) NO hablan directo con
+// Supabase. Hablan con esta interfaz, que:
+//   - LEE siempre del espejo local (IndexedDB) → funciona sin señal.
+//   - ESCRIBE primero al espejo local (la UI se actualiza al instante) y
+//     encola el cambio en el outbox para mandarlo a Supabase apenas haya
+//     conexión (ver sync.js).
 //
-// Modelo de dominio (sin cambios):
-//   Viaje: nace cuando una GRÚA carga un TRACTOR en una COLUMNA de cancha.
-//   Atraviesa 3 estados: 'cargado' -> 'en_transito' -> 'completado'.
+// Los IDs se generan en el celular (UUID) al crear un registro, así que un
+// tractor cargado sin señal ya tiene su ID definitivo desde el primer
+// instante — no hace falta "renumerar" nada cuando vuelve la conexión.
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseConfig.js';
+import { LocalDB } from './localdb.js';
+import { kick, onDataChange } from './sync.js';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -24,93 +27,59 @@ const STORES = {
   LINEAS: 'lineas',
 };
 
-// ---- Mapeo camelCase (JS) <-> snake_case (Postgres) -------------------------
-
-const FIELD_MAPS = {
-  tractores: { nombre: 'nombre', patente: 'patente', capacidad: 'capacidad', estado: 'estado' },
-  columnas: { nombre: 'nombre', tipoMadera: 'tipo_madera', volumenTotal: 'volumen_total', volumenDisponible: 'volumen_disponible' },
-  lineas: { nombre: 'nombre', consumoAcumulado: 'consumo_acumulado' },
-  viajes: {
-    folio: 'folio', tractorId: 'tractor_id', tractorNombre: 'tractor_nombre',
-    columnaId: 'columna_id', columnaNombre: 'columna_nombre', tipoMadera: 'tipo_madera',
-    volumenCarga: 'volumen_carga', lineaId: 'linea_id', lineaNombre: 'linea_nombre',
-    volumenDescarga: 'volumen_descarga', estado: 'estado', fechaCarga: 'fecha_carga',
-    horaCarga: 'hora_carga', horaTransito: 'hora_transito', horaDescarga: 'hora_descarga',
-    observaciones: 'observaciones',
-  },
-};
-
-function toDb(storeName, obj) {
-  const map = FIELD_MAPS[storeName];
-  const row = {};
-  for (const [jsKey, dbKey] of Object.entries(map)) {
-    if (obj[jsKey] !== undefined) row[dbKey] = obj[jsKey];
-  }
-  return row;
+function uuid() {
+  return crypto.randomUUID();
 }
 
-function fromDb(storeName, row) {
-  if (!row) return row;
-  const map = FIELD_MAPS[storeName];
-  const obj = { id: row.id };
-  for (const [jsKey, dbKey] of Object.entries(map)) {
-    obj[jsKey] = row[dbKey];
-  }
-  return obj;
-}
+// ---- Lecturas: siempre desde el espejo local -----------------------------------
 
-function checkError(error) {
-  if (error) {
-    console.error('Supabase error:', error);
-    throw new Error(error.message || 'Error de conexión con Supabase');
-  }
+function sortKey(row) {
+  if (row.createdAt) return new Date(row.createdAt).getTime();
+  if (row.createdAtLocal) return row.createdAtLocal;
+  return 0;
 }
-
-// ---- CRUD genérico ------------------------------------------------------------
 
 async function getAll(storeName) {
-  const { data, error } = await supabase.from(storeName).select('*').order('id', { ascending: true });
-  checkError(error);
-  return data.map((row) => fromDb(storeName, row));
+  const rows = await LocalDB.mirrorGetAll(storeName);
+  return rows.sort((a, b) => sortKey(a) - sortKey(b));
 }
 
 async function getById(storeName, id) {
-  const { data, error } = await supabase.from(storeName).select('*').eq('id', id).maybeSingle();
-  checkError(error);
-  return fromDb(storeName, data);
+  return LocalDB.mirrorGetById(storeName, id);
 }
 
-async function getByIndex(storeName, indexName, value) {
-  const { data, error } = await supabase.from(storeName).select('*').eq(indexName, value).order('id', { ascending: true });
-  checkError(error);
-  return data.map((row) => fromDb(storeName, row));
+async function getByIndex(storeName, field, value) {
+  const rows = await LocalDB.mirrorGetAll(storeName);
+  return rows.filter((r) => r[field] === value);
 }
+
+// ---- Escrituras: local primero (optimista), luego se encola para sync ---------
 
 async function add(storeName, obj) {
-  const payload = toDb(storeName, obj);
-  const { data, error } = await supabase.from(storeName).insert(payload).select().single();
-  checkError(error);
-  return data.id;
+  const row = { ...obj, id: obj.id || uuid(), createdAtLocal: Date.now() };
+  await LocalDB.mirrorPut(storeName, row);
+  await LocalDB.outboxEnqueue({ type: 'insert', table: storeName, id: row.id, payload: row });
+  kick();
+  return row.id;
 }
 
 async function put(storeName, obj) {
-  const { id, ...rest } = obj;
-  const payload = toDb(storeName, rest);
-  const { error } = await supabase.from(storeName).update(payload).eq('id', id);
-  checkError(error);
-  return id;
+  await LocalDB.mirrorPut(storeName, obj);
+  await LocalDB.outboxEnqueue({ type: 'update', table: storeName, id: obj.id, payload: obj });
+  kick();
+  return obj.id;
 }
 
 async function remove(storeName, id) {
-  const { error } = await supabase.from(storeName).delete().eq('id', id);
-  checkError(error);
+  await LocalDB.mirrorDelete(storeName, id);
+  await LocalDB.outboxEnqueue({ type: 'delete', table: storeName, id });
+  kick();
 }
 
-// ---- Seed (solo corre si las tablas están vacías; normalmente ya se sembraron
-//      desde sql/schema.sql, esto es un respaldo por si el proyecto está limpio) ---
+// ---- Seed: si el espejo local está vacío (primera vez en este dispositivo) ----
 
 async function seedIfEmpty() {
-  const tractores = await getAll(STORES.TRACTORES);
+  const tractores = await LocalDB.mirrorGetAll(STORES.TRACTORES);
   if (tractores.length > 0) return;
 
   const seedTractores = [
@@ -136,25 +105,18 @@ async function seedIfEmpty() {
   for (const l of seedLineas) await add(STORES.LINEAS, l);
 }
 
+// Folio 100% local — no depende de consultar al servidor (funciona sin señal).
 async function nextFolio() {
-  const { count, error } = await supabase.from(STORES.VIAJES).select('*', { count: 'exact', head: true });
-  checkError(error);
-  const year = new Date().getFullYear();
-  return `V-${year}-${String((count || 0) + 1).padStart(4, '0')}`;
+  const fecha = new Date();
+  const y = fecha.getFullYear();
+  const compact = fecha.toISOString().slice(5, 16).replace(/[-:T]/g, '');
+  return `V-${y}-${compact}`;
 }
 
-// ---- Realtime -------------------------------------------------------------------
-// Suscribe a cambios en las 4 tablas y ejecuta `onChange` cada vez que otro
-// dispositivo inserta/actualiza/elimina algo. Así todos ven los mismos datos
-// sin recargar la página.
-
 function subscribeRealtime(onChange) {
-  const channel = supabase.channel('patio-realtime-changes');
-  [STORES.VIAJES, STORES.TRACTORES, STORES.COLUMNAS, STORES.LINEAS].forEach((table) => {
-    channel.on('postgres_changes', { event: '*', schema: 'public', table }, onChange);
-  });
-  channel.subscribe();
-  return () => supabase.removeChannel(channel);
+  // El motor de sync ya escucha Realtime + cambios locales; solo reenviamos
+  // el aviso a quien llamó (app.js) para que refresque la vista actual.
+  return onDataChange(onChange);
 }
 
 export const DB = { STORES, getAll, getById, getByIndex, add, put, remove, seedIfEmpty, nextFolio, subscribeRealtime };
