@@ -9,5 +9,5 @@
 // datos lo controla Row Level Security (RLS), definido en sql/schema.sql.
 // ============================================================================
 
-export const SUPABASE_URL = 'https://fdyhxypdgylguszrttvu.supabase.co/rest/v1/';
+export const SUPABASE_URL = 'https://fdyhxypdgylguszrttvu.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_hJ_yRknCJwxQjVzGjlMnUw_FZoYt2As';
