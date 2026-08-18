@@ -1,45 +1,68 @@
 -- ============================================================================
--- Patio Madera ARAUCO — Schema Supabase
--- Ejecutar completo en: Supabase Dashboard → SQL Editor → New query → Run
+-- Patio Madera ARAUCO — Schema Supabase (v2 · offline-ready)
+--
+-- ⚠️ ESTE SCRIPT BORRA Y RECREA LAS TABLAS (para pasar de IDs autoincrementales
+-- a UUID generados por el cliente, requisito para que la app funcione sin
+-- señal). Si ya tenías datos reales cargados, se perderán — este proyecto
+-- todavía está en etapa de pruebas, así que no debería ser un problema. Vuelve
+-- a ejecutar TODO el script en: Supabase Dashboard → SQL Editor → New query → Run
+--
+-- Por qué UUID: cuando el tractorista carga un tractor sin señal, la app
+-- necesita asignarle un ID definitivo AHÍ MISMO (para poder seguir operando
+-- localmente: despacharlo a línea, descargarlo, etc.) sin esperar a que el
+-- servidor confirme. Con IDs autoincrementales eso es imposible porque el
+-- número lo entrega la base de datos. Con UUID, el celular genera un ID
+-- único globalmente en el momento, y cuando vuelve la señal, ese mismo ID ya
+-- es el definitivo — no hay que "renumerar" nada.
 -- ============================================================================
+
+create extension if not exists "pgcrypto";
+
+drop table if exists viajes cascade;
+drop table if exists tractores cascade;
+drop table if exists columnas cascade;
+drop table if exists lineas cascade;
 
 -- ---- TABLAS -----------------------------------------------------------------
 
-create table if not exists tractores (
-  id bigint generated always as identity primary key,
+create table tractores (
+  id uuid primary key default gen_random_uuid(),
   nombre text not null,
   patente text not null,
   capacidad numeric not null,
   estado text not null default 'disponible' check (estado in ('disponible', 'en_viaje')),
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
-create table if not exists columnas (
-  id bigint generated always as identity primary key,
+create table columnas (
+  id uuid primary key default gen_random_uuid(),
   nombre text not null,
   tipo_madera text not null,
   volumen_total numeric not null,
   volumen_disponible numeric not null,
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
-create table if not exists lineas (
-  id bigint generated always as identity primary key,
+create table lineas (
+  id uuid primary key default gen_random_uuid(),
   nombre text not null,
   consumo_acumulado numeric not null default 0,
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
-create table if not exists viajes (
-  id bigint generated always as identity primary key,
+create table viajes (
+  id uuid primary key default gen_random_uuid(),
   folio text unique not null,
-  tractor_id bigint references tractores(id) on delete set null,
+  tractor_id uuid references tractores(id) on delete set null,
   tractor_nombre text,
-  columna_id bigint references columnas(id) on delete set null,
+  columna_id uuid references columnas(id) on delete set null,
   columna_nombre text,
   tipo_madera text,
   volumen_carga numeric not null,
-  linea_id bigint references lineas(id) on delete set null,
+  linea_id uuid references lineas(id) on delete set null,
   linea_nombre text,
   volumen_descarga numeric,
   estado text not null default 'cargado' check (estado in ('cargado', 'en_transito', 'completado')),
@@ -48,16 +71,14 @@ create table if not exists viajes (
   hora_transito timestamptz,
   hora_descarga timestamptz,
   observaciones text,
+  updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_viajes_estado on viajes(estado);
-create index if not exists idx_viajes_fecha on viajes(fecha_carga);
+create index idx_viajes_estado on viajes(estado);
+create index idx_viajes_fecha on viajes(fecha_carga);
 
 -- ---- ROW LEVEL SECURITY -------------------------------------------------------
--- Cualquier usuario AUTENTICADO (login con email/password) puede leer y
--- escribir. Sin sesión, no se puede tocar nada. Ajusta esto si necesitas
--- roles distintos (ej: operador de cancha vs. supervisor de reportes).
 
 alter table tractores enable row level security;
 alter table columnas enable row level security;
@@ -83,15 +104,13 @@ create policy "auth write viajes" on viajes for insert with check (auth.role() =
 create policy "auth update viajes" on viajes for update using (auth.role() = 'authenticated');
 
 -- ---- REALTIME -----------------------------------------------------------------
--- Habilita que los cambios en estas tablas se transmitan en vivo a todos los
--- clientes conectados (así un celular ve al instante lo que registra otro).
 
 alter publication supabase_realtime add table tractores;
 alter publication supabase_realtime add table columnas;
 alter publication supabase_realtime add table lineas;
 alter publication supabase_realtime add table viajes;
 
--- ---- SEED (datos de ejemplo, opcional) -----------------------------------------
+-- ---- SEED (datos de ejemplo) -----------------------------------------
 
 insert into tractores (nombre, patente, capacidad, estado) values
   ('Tractor 07', 'TR-07', 35, 'disponible'),
