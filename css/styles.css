@@ -199,3 +199,17 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
 .auth-form .field { width: 100%; }
 .auth-form button { width: 100%; }
 .auth-error { color: var(--rojo-500); font-size: 0.8rem; min-height: 1em; text-align: center; }
+
+
+
+
+
+/* ===== SYNC STATUS BADGE ===== */
+#sync-status {
+  font-family: var(--font-display); font-size: 0.7rem; letter-spacing: 0.04em;
+  text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 999px;
+  border: 1px solid var(--verde-600); transition: all 0.2s ease;
+}
+#sync-status.sync-ok { color: var(--verde-500); border-color: var(--verde-500); }
+#sync-status.sync-pending { color: var(--ambar-400); border-color: var(--ambar-500); }
+#sync-status.sync-offline { color: var(--rojo-500); border-color: var(--rojo-500); background: rgba(193,75,63,0.1); }
