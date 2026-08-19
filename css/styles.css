@@ -224,3 +224,13 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
   gap: 0.6rem;
 }
 .card-editing input { font-size: 0.85rem; }
+
+
+
+/* ===== PREVIEW M3SSC CALCULADO (Productos) ===== */
+.m3ssc-preview {
+  background: var(--verde-950); border: 1px dashed var(--verde-600);
+  color: var(--ambar-400); padding: 0.55rem 0.65rem; border-radius: var(--radius);
+  font-family: var(--font-mono); font-size: 0.9rem;
+}
+
