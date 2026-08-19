@@ -11,8 +11,8 @@
 // ============================================================================
 
 const DB_NAME = 'PatioARAUCO_local';
-const DB_VERSION = 1;
-const TABLES = ['tractores', 'columnas', 'lineas', 'viajes'];
+const DB_VERSION = 2;
+const TABLES = ['tractores', 'columnas', 'lineas', 'viajes', 'productos'];
 
 let _db = null;
 
