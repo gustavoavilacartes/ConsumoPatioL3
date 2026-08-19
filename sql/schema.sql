@@ -1,24 +1,18 @@
 -- ============================================================================
--- Patio Madera ARAUCO — Schema Supabase (v2 · offline-ready)
+-- Patio Madera ARAUCO — Schema Supabase (v3 · + Productos)
 --
--- ⚠️ ESTE SCRIPT BORRA Y RECREA LAS TABLAS (para pasar de IDs autoincrementales
--- a UUID generados por el cliente, requisito para que la app funcione sin
--- señal). Si ya tenías datos reales cargados, se perderán — este proyecto
--- todavía está en etapa de pruebas, así que no debería ser un problema. Vuelve
--- a ejecutar TODO el script en: Supabase Dashboard → SQL Editor → New query → Run
+-- ⚠️ ESTE SCRIPT BORRA Y RECREA LAS TABLAS. Vuelve a ejecutar TODO el script
+-- en: Supabase Dashboard → SQL Editor → New query → Run
 --
--- Por qué UUID: cuando el tractorista carga un tractor sin señal, la app
--- necesita asignarle un ID definitivo AHÍ MISMO (para poder seguir operando
--- localmente: despacharlo a línea, descargarlo, etc.) sin esperar a que el
--- servidor confirme. Con IDs autoincrementales eso es imposible porque el
--- número lo entrega la base de datos. Con UUID, el celular genera un ID
--- único globalmente en el momento, y cuando vuelve la señal, ese mismo ID ya
--- es el definitivo — no hay que "renumerar" nada.
+-- Novedad v3: tabla "productos" (PRODUCTO / MR / FACTOR / M3SSC). El volumen
+-- que se carga en un tractor ya no se escribe a mano: se elige un producto,
+-- y el volumen es su M3SSC = MR × FACTOR (calculado, no editable a mano).
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
 
 drop table if exists viajes cascade;
+drop table if exists productos cascade;
 drop table if exists tractores cascade;
 drop table if exists columnas cascade;
 drop table if exists lineas cascade;
@@ -53,6 +47,17 @@ create table lineas (
   created_at timestamptz not null default now()
 );
 
+-- Maestro de productos: PRODUCTO / MR / FACTOR / M3SSC (calculado = MR × FACTOR)
+create table productos (
+  id uuid primary key default gen_random_uuid(),
+  producto text not null,
+  mr numeric(10,3) not null,
+  factor numeric(10,3) not null,
+  m3ssc numeric(10,3) not null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 create table viajes (
   id uuid primary key default gen_random_uuid(),
   folio text unique not null,
@@ -61,6 +66,10 @@ create table viajes (
   columna_id uuid references columnas(id) on delete set null,
   columna_nombre text,
   tipo_madera text,
+  producto_id uuid references productos(id) on delete set null,
+  producto_nombre text,
+  mr numeric(10,3),
+  factor numeric(10,3),
   volumen_carga numeric not null,
   linea_id uuid references lineas(id) on delete set null,
   linea_nombre text,
@@ -83,6 +92,7 @@ create index idx_viajes_fecha on viajes(fecha_carga);
 alter table tractores enable row level security;
 alter table columnas enable row level security;
 alter table lineas enable row level security;
+alter table productos enable row level security;
 alter table viajes enable row level security;
 
 create policy "auth read tractores" on tractores for select using (auth.role() = 'authenticated');
@@ -98,6 +108,12 @@ create policy "auth delete columnas" on columnas for delete using (auth.role() =
 create policy "auth read lineas" on lineas for select using (auth.role() = 'authenticated');
 create policy "auth write lineas" on lineas for insert with check (auth.role() = 'authenticated');
 create policy "auth update lineas" on lineas for update using (auth.role() = 'authenticated');
+create policy "auth delete lineas" on lineas for delete using (auth.role() = 'authenticated');
+
+create policy "auth read productos" on productos for select using (auth.role() = 'authenticated');
+create policy "auth write productos" on productos for insert with check (auth.role() = 'authenticated');
+create policy "auth update productos" on productos for update using (auth.role() = 'authenticated');
+create policy "auth delete productos" on productos for delete using (auth.role() = 'authenticated');
 
 create policy "auth read viajes" on viajes for select using (auth.role() = 'authenticated');
 create policy "auth write viajes" on viajes for insert with check (auth.role() = 'authenticated');
@@ -108,6 +124,7 @@ create policy "auth update viajes" on viajes for update using (auth.role() = 'au
 alter publication supabase_realtime add table tractores;
 alter publication supabase_realtime add table columnas;
 alter publication supabase_realtime add table lineas;
+alter publication supabase_realtime add table productos;
 alter publication supabase_realtime add table viajes;
 
 -- ---- SEED (datos de ejemplo) -----------------------------------------
@@ -128,3 +145,7 @@ insert into lineas (nombre, consumo_acumulado) values
   ('Línea 2 · Astillado', 0),
   ('Línea 3 · Aserradero', 0),
   ('Línea 4 · Biomasa', 0);
+
+insert into productos (producto, mr, factor, m3ssc) values
+  ('Pino Trozo Aserrable', 1.000, 0.700, 0.700),
+  ('Eucalipto Pulpable', 1.000, 0.650, 0.650);
