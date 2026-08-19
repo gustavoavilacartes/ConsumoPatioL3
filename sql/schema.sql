@@ -7,6 +7,8 @@
 -- Novedad v3: tabla "productos" (PRODUCTO / MR / FACTOR / M3SSC). El volumen
 -- que se carga en un tractor ya no se escribe a mano: se elige un producto,
 -- y el volumen es su M3SSC = MR × FACTOR (calculado, no editable a mano).
+-- Los tractores YA NO tienen capacidad propia — la carga la determina el
+-- producto elegido.
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
@@ -23,7 +25,6 @@ create table tractores (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   patente text not null,
-  capacidad numeric not null,
   estado text not null default 'disponible' check (estado in ('disponible', 'en_viaje')),
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
@@ -129,11 +130,11 @@ alter publication supabase_realtime add table viajes;
 
 -- ---- SEED (datos de ejemplo) -----------------------------------------
 
-insert into tractores (nombre, patente, capacidad, estado) values
-  ('Tractor 07', 'TR-07', 35, 'disponible'),
-  ('Tractor 12', 'TR-12', 40, 'disponible'),
-  ('Tractor 03', 'TR-03', 30, 'disponible'),
-  ('Tractor 21', 'TR-21', 38, 'disponible');
+insert into tractores (nombre, patente, estado) values
+  ('Tractor 07', 'TR-07', 'disponible'),
+  ('Tractor 12', 'TR-12', 'disponible'),
+  ('Tractor 03', 'TR-03', 'disponible'),
+  ('Tractor 21', 'TR-21', 'disponible');
 
 insert into columnas (nombre, tipo_madera, volumen_total, volumen_disponible) values
   ('COL-01', 'Pino Radiata', 800, 620),
