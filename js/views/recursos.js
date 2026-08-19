@@ -7,16 +7,16 @@ import { fmtM3, toast, el } from '../utils.js';
 
 let activeTab = 'tractores';
 // Guarda qué ficha está en modo edición por pestaña (id o null).
-const editState = { tractores: null, columnas: null, lineas: null };
+const editState = { tractores: null, columnas: null, lineas: null, productos: null };
 
 export async function renderRecursos(root) {
   root.innerHTML = '';
   root.appendChild(el('div', { class: 'view-header' }, [
     el('h2', {}, 'Recursos Maestros'),
-    el('p', { class: 'view-sub' }, 'Flota de tractores, columnas de cancha y líneas de destino. Todo editable — agrega, corrige o quita recursos según cambie la operación.'),
+    el('p', { class: 'view-sub' }, 'Flota de tractores, columnas de cancha, líneas de destino y productos. Todo editable — agrega, corrige o quita recursos según cambie la operación.'),
   ]));
 
-  const tabs = el('div', { class: 'tabs' }, [tabBtn('tractores', 'Tractores'), tabBtn('columnas', 'Columnas'), tabBtn('lineas', 'Líneas')]);
+  const tabs = el('div', { class: 'tabs' }, [tabBtn('tractores', 'Tractores'), tabBtn('columnas', 'Columnas'), tabBtn('lineas', 'Líneas'), tabBtn('productos', 'Productos')]);
   root.appendChild(tabs);
   const body = el('div', { id: 'recursos-body' });
   root.appendChild(body);
@@ -26,6 +26,7 @@ export async function renderRecursos(root) {
   if (activeTab === 'tractores') await renderTractores(body);
   if (activeTab === 'columnas') await renderColumnas(body);
   if (activeTab === 'lineas') await renderLineas(body);
+  if (activeTab === 'productos') await renderProductos(body);
 }
 
 function tabBtn(id, label) { return el('button', { class: `tab-btn ${activeTab === id ? 'active' : ''}`, 'data-tab': id }, label); }
@@ -219,6 +220,98 @@ function lineaEditCard(l, body) {
         },
       }, 'Guardar'),
       el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.lineas = null; renderLineas(body); } }, 'Cancelar'),
+    ]),
+  ]);
+}
+
+// ---- Productos -------------------------------------------------------------------
+// M3SSC se calcula solo (MR × FACTOR) — nunca se ingresa a mano.
+
+function calcM3SSC(mr, factor) {
+  return Number((mr * factor).toFixed(3));
+}
+
+async function renderProductos(body) {
+  const productos = await DB.getAll(DB.STORES.PRODUCTOS);
+  body.innerHTML = '';
+  const form = el('form', { class: 'panel form-grid' });
+  const nombreI = el('input', { id: 'prod-nombre', required: 'true' });
+  const mrI = el('input', { id: 'prod-mr', type: 'number', step: '0.001', required: 'true' });
+  const factorI = el('input', { id: 'prod-factor', type: 'number', step: '0.001', required: 'true' });
+  const previewEl = el('div', { class: 'field' }, [el('label', {}, 'M3SSC (calculado)'), el('div', { class: 'm3ssc-preview', id: 'prod-preview' }, '—')]);
+  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Producto'), nombreI]));
+  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'MR'), mrI]));
+  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Factor'), factorI]));
+  form.appendChild(previewEl);
+  form.appendChild(el('button', { type: 'submit', class: 'btn btn-primary' }, 'Agregar producto'));
+  body.appendChild(form);
+
+  const updatePreview = () => {
+    const mr = parseFloat(mrI.value), factor = parseFloat(factorI.value);
+    previewEl.querySelector('.m3ssc-preview').textContent = (mr && factor) ? fmtM3(calcM3SSC(mr, factor)) : '—';
+  };
+  mrI.addEventListener('input', updatePreview);
+  factorI.addEventListener('input', updatePreview);
+
+  const grid = el('div', { class: 'card-grid' });
+  productos.forEach(p => grid.appendChild(
+    editState.productos === p.id ? productoEditCard(p, body) : productoViewCard(p, body)
+  ));
+  body.appendChild(grid);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nombre = nombreI.value;
+    const mr = parseFloat(mrI.value);
+    const factor = parseFloat(factorI.value);
+    if (!nombre || !mr || !factor) return;
+    await DB.add(DB.STORES.PRODUCTOS, { nombre, mr, factor, m3ssc: calcM3SSC(mr, factor) });
+    toast('Producto agregado', 'success');
+    renderProductos(body);
+  });
+}
+
+function productoViewCard(p, body) {
+  return el('div', { class: 'card card-recurso' }, [
+    el('div', { class: 'card-main' }, p.nombre),
+    el('div', { class: 'card-meta' }, `MR ${p.mr.toFixed(3)} · Factor ${p.factor.toFixed(3)} · M3SSC ${fmtM3(p.m3ssc)}`),
+    el('div', { class: 'card-action' }, [
+      el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.productos = p.id; renderProductos(body); } }, 'Editar'),
+      el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: async () => { await DB.remove(DB.STORES.PRODUCTOS, p.id); renderProductos(body); } }, 'Eliminar'),
+    ]),
+  ]);
+}
+
+function productoEditCard(p, body) {
+  const nombreI = el('input', { value: p.nombre });
+  const mrI = el('input', { type: 'number', step: '0.001', value: p.mr });
+  const factorI = el('input', { type: 'number', step: '0.001', value: p.factor });
+  const previewEl = el('div', { class: 'm3ssc-preview' }, fmtM3(p.m3ssc));
+  const updatePreview = () => {
+    const mr = parseFloat(mrI.value), factor = parseFloat(factorI.value);
+    previewEl.textContent = (mr && factor) ? fmtM3(calcM3SSC(mr, factor)) : '—';
+  };
+  mrI.addEventListener('input', updatePreview);
+  factorI.addEventListener('input', updatePreview);
+
+  return el('div', { class: 'card card-recurso card-editing' }, [
+    el('div', { class: 'field' }, [el('label', {}, 'Producto'), nombreI]),
+    el('div', { class: 'field' }, [el('label', {}, 'MR'), mrI]),
+    el('div', { class: 'field' }, [el('label', {}, 'Factor'), factorI]),
+    el('div', { class: 'field' }, [el('label', {}, 'M3SSC (calculado)'), previewEl]),
+    el('div', { class: 'card-action' }, [
+      el('button', {
+        class: 'btn btn-primary btn-sm', type: 'button', onclick: async () => {
+          const mr = parseFloat(mrI.value);
+          const factor = parseFloat(factorI.value);
+          if (!nombreI.value || !mr || !factor) { toast('Revisa los campos', 'error'); return; }
+          await DB.put(DB.STORES.PRODUCTOS, { ...p, nombre: nombreI.value, mr, factor, m3ssc: calcM3SSC(mr, factor) });
+          editState.productos = null;
+          toast('Producto actualizado', 'success');
+          renderProductos(body);
+        },
+      }, 'Guardar'),
+      el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.productos = null; renderProductos(body); } }, 'Cancelar'),
     ]),
   ]);
 }
