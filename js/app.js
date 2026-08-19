@@ -67,7 +67,9 @@ function initSyncBadge() {
 
 async function boot() {
   await ensureAuthenticated();
-
+  if (navigator.onLine) {
+    await pullAll();
+  }
   try {
     await DB.seedIfEmpty();
   } catch (err) {
