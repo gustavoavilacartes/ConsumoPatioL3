@@ -213,3 +213,14 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
 #sync-status.sync-ok { color: var(--verde-500); border-color: var(--verde-500); }
 #sync-status.sync-pending { color: var(--ambar-400); border-color: var(--ambar-500); }
 #sync-status.sync-offline { color: var(--rojo-500); border-color: var(--rojo-500); background: rgba(193,75,63,0.1); }
+
+
+
+
+/* ===== EDICIÓN INLINE DE RECURSOS ===== */
+.card-editing {
+  border-left-color: var(--ambar-500);
+  background: var(--verde-800);
+  gap: 0.6rem;
+}
+.card-editing input { font-size: 0.85rem; }
