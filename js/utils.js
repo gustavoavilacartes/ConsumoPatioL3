@@ -3,7 +3,7 @@
 // ============================================================================
 
 export function fmtM3(n) { return `${Number(n || 0).toFixed(2)} m³`; }
-export function fmtHora(iso) { return iso ? new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '—'; }
+export function fmtHora(iso) { return iso ? new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }
 export function hoyISO() { return new Date().toISOString().split('T')[0]; }
 export function nowISO() { return new Date().toISOString(); }
 
