@@ -2,7 +2,7 @@
 // app.js — Orquestador principal / router de vistas
 // ============================================================================
 import { DB } from './db.js';
-import { initSync, onStatusChange } from './sync.js';
+import { initSync, onStatusChange, pullAll } from './sync.js';
 import { ensureAuthenticated, logout } from './auth.js';
 import { toast } from './utils.js';
 import { renderDashboard } from './views/dashboard.js';
