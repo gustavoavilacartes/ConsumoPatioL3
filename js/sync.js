@@ -46,7 +46,7 @@ async function refreshPendingCount() {
   notifyStatus();
 }
 
-// ---- Pull: trae los 4 conjuntos de datos desde Supabase ----------------------
+// ---- Pull: trae los conjuntos de datos desde Supabase ----------------------
 
 export async function pullAll() {
   if (!navigator.onLine) return false;
@@ -86,7 +86,6 @@ async function flushOutbox() {
         await LocalDB.outboxRemove(op.opId);
         await refreshPendingCount();
       } else {
-        // Error de red: paramos acá, se reintenta más tarde.
         break;
       }
     }
@@ -109,9 +108,6 @@ async function applyOp(op) {
     }
     return { retry: false };
   } catch (err) {
-    // Sin conexión / timeout → reintentar más tarde. Error de validación del
-    // servidor (RLS, constraint) → no tiene sentido reintentar indefinidamente;
-    // lo dejamos registrado y descartamos para no bloquear el resto de la cola.
     const isNetworkError = err.message?.includes('fetch') || err.message?.includes('network') || !navigator.onLine;
     if (isNetworkError) return { retry: true };
     console.error(`Sync: operación descartada tras error del servidor (${op.table}/${op.type}):`, err.message);
@@ -120,11 +116,11 @@ async function applyOp(op) {
   }
 }
 
-// ---- Mapeo camelCase <-> snake_case (igual que antes) -------------------------
+// ---- Mapeo camelCase <-> snake_case -------------------------
 
 const FIELD_MAPS = {
   tractores: { id: 'id', nombre: 'nombre', patente: 'patente', estado: 'estado', createdAt: 'created_at' },
-  columnas: { id: 'id', nombre: 'nombre', tipoMadera: 'tipo_madera', volumenTotal: 'volumen_total', volumenDisponible: 'volumen_disponible', createdAt: 'created_at' },
+  columnas: { id: 'id', nombre: 'nombre', tipoMadera: 'tipo_madera', volumenTotal: 'volumen_total', volumenDisponible: 'volumen_disponible', productoId: 'producto_id', productoNombre: 'producto_nombre', createdAt: 'created_at' },
   lineas: { id: 'id', nombre: 'nombre', consumoAcumulado: 'consumo_acumulado', createdAt: 'created_at' },
   productos: { id: 'id', nombre: 'producto', mr: 'mr', factor: 'factor', m3ssc: 'm3ssc', createdAt: 'created_at' },
   viajes: {
@@ -157,7 +153,6 @@ function guessTable(obj) {
 }
 
 function fromDbRow(row) {
-  // Detecta la tabla por columnas presentes y devuelve el objeto en camelCase.
   let map;
   if ('folio' in row) map = FIELD_MAPS.viajes;
   else if ('patente' in row) map = FIELD_MAPS.tractores;
@@ -225,9 +220,6 @@ export function onDataChange(fn) {
   return () => { changeListeners = changeListeners.filter((f) => f !== fn); };
 }
 
-// Llamado por db.js cada vez que se encola un cambio nuevo, para intentar
-// mandarlo de inmediato si hay señal (y para que el badge de pendientes
-// se actualice al toque).
 export function kick() {
   refreshPendingCount();
   if (navigator.onLine) flushOutbox();
