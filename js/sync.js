@@ -126,9 +126,11 @@ const FIELD_MAPS = {
   tractores: { id: 'id', nombre: 'nombre', patente: 'patente', capacidad: 'capacidad', estado: 'estado', createdAt: 'created_at' },
   columnas: { id: 'id', nombre: 'nombre', tipoMadera: 'tipo_madera', volumenTotal: 'volumen_total', volumenDisponible: 'volumen_disponible', createdAt: 'created_at' },
   lineas: { id: 'id', nombre: 'nombre', consumoAcumulado: 'consumo_acumulado', createdAt: 'created_at' },
+  productos: { id: 'id', nombre: 'producto', mr: 'mr', factor: 'factor', m3ssc: 'm3ssc', createdAt: 'created_at' },
   viajes: {
     id: 'id', folio: 'folio', tractorId: 'tractor_id', tractorNombre: 'tractor_nombre',
     columnaId: 'columna_id', columnaNombre: 'columna_nombre', tipoMadera: 'tipo_madera',
+    productoId: 'producto_id', productoNombre: 'producto_nombre', mr: 'mr', factor: 'factor',
     volumenCarga: 'volumen_carga', lineaId: 'linea_id', lineaNombre: 'linea_nombre',
     volumenDescarga: 'volumen_descarga', estado: 'estado', fechaCarga: 'fecha_carga',
     horaCarga: 'hora_carga', horaTransito: 'hora_transito', horaDescarga: 'hora_descarga',
@@ -150,6 +152,7 @@ function guessTable(obj) {
   if ('folio' in obj) return FIELD_MAPS.viajes;
   if ('capacidad' in obj) return FIELD_MAPS.tractores;
   if ('volumenTotal' in obj) return FIELD_MAPS.columnas;
+  if ('mr' in obj) return FIELD_MAPS.productos;
   return FIELD_MAPS.lineas;
 }
 
@@ -159,6 +162,7 @@ function fromDbRow(row) {
   if ('folio' in row) map = FIELD_MAPS.viajes;
   else if ('capacidad' in row) map = FIELD_MAPS.tractores;
   else if ('volumen_total' in row) map = FIELD_MAPS.columnas;
+  else if ('mr' in row) map = FIELD_MAPS.productos;
   else map = FIELD_MAPS.lineas;
 
   const obj = {};
