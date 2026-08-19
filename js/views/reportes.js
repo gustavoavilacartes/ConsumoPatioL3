@@ -31,15 +31,15 @@ export async function renderReportes(root) {
     if (viajes.length === 0) { content.appendChild(el('p', { class: 'empty' }, `No hay viajes completados para ${fecha}.`)); return; }
 
     const table = el('table', { class: 'report-table' });
-    table.appendChild(el('thead', {}, el('tr', {}, ['Folio', 'Tractor', 'Columna', 'Producto', 'Línea', 'Vol. carga', 'Vol. descarga', 'Hora descarga'].map(h => el('th', {}, h)))));
+    table.appendChild(el('thead', {}, el('tr', {}, ['Folio', 'Tractor', 'Columna', 'Producto', 'Línea', 'Vol. carga', 'Hora carga', 'Vol. descarga', 'Hora descarga'].map(h => el('th', {}, h)))));
     const tbody = el('tbody');
     let totalCarga = 0, totalDescarga = 0;
     viajes.forEach(v => {
       totalCarga += v.volumenCarga;
       totalDescarga += v.volumenDescarga || 0;
-      tbody.appendChild(el('tr', {}, [v.folio, v.tractorNombre, v.columnaNombre, v.productoNombre || v.tipoMadera, v.lineaNombre, fmtM3(v.volumenCarga), fmtM3(v.volumenDescarga), fmtHora(v.horaDescarga)].map(t => el('td', {}, t))));
+             tbody.appendChild(el('tr', {}, [v.folio, v.tractorNombre, v.columnaNombre, v.productoNombre || v.tipoMadera, v.lineaNombre, fmtM3(v.volumenCarga), fmtHora(v.horaCarga), fmtM3(v.volumenDescarga), fmtHora(v.horaDescarga)].map(t => el('td', {}, t))));
     });
-    tbody.appendChild(el('tr', { class: 'report-total' }, [el('td', { colspan: '5' }, 'TOTAL'), el('td', {}, fmtM3(totalCarga)), el('td', {}, fmtM3(totalDescarga)), el('td', {}, '')]));
+    tbody.appendChild(el('tr', { class: 'report-total' }, [el('td', { colspan: '5' }, 'TOTAL'), el('td', {}, fmtM3(totalCarga)), el('td', {}, ''), el('td', {}, fmtM3(totalDescarga)), el('td', {}, '')]));
     table.appendChild(tbody);
     content.appendChild(table);
   }
