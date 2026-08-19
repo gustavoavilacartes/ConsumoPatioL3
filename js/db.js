@@ -25,6 +25,7 @@ const STORES = {
   COLUMNAS: 'columnas',
   TRACTORES: 'tractores',
   LINEAS: 'lineas',
+  PRODUCTOS: 'productos',
 };
 
 function uuid() {
@@ -76,33 +77,53 @@ async function remove(storeName, id) {
   kick();
 }
 
-// ---- Seed: si el espejo local está vacío (primera vez en este dispositivo) ----
+// ---- Seed: siembra cada colección por separado (para que dispositivos que ya
+//      tenían datos reciban igual las tablas nuevas, como Productos) ------------
 
 async function seedIfEmpty() {
-  const tractores = await LocalDB.mirrorGetAll(STORES.TRACTORES);
-  if (tractores.length > 0) return;
+  const [tractores, columnas, lineas, productos] = await Promise.all([
+    LocalDB.mirrorGetAll(STORES.TRACTORES),
+    LocalDB.mirrorGetAll(STORES.COLUMNAS),
+    LocalDB.mirrorGetAll(STORES.LINEAS),
+    LocalDB.mirrorGetAll(STORES.PRODUCTOS),
+  ]);
 
-  const seedTractores = [
-    { nombre: 'Tractor 07', patente: 'TR-07', capacidad: 35, estado: 'disponible' },
-    { nombre: 'Tractor 12', patente: 'TR-12', capacidad: 40, estado: 'disponible' },
-    { nombre: 'Tractor 03', patente: 'TR-03', capacidad: 30, estado: 'disponible' },
-    { nombre: 'Tractor 21', patente: 'TR-21', capacidad: 38, estado: 'disponible' },
-  ];
-  const seedColumnas = [
-    { nombre: 'COL-01', tipoMadera: 'Pino Radiata', volumenTotal: 800, volumenDisponible: 620 },
-    { nombre: 'COL-02', tipoMadera: 'Eucalipto', volumenTotal: 650, volumenDisponible: 410 },
-    { nombre: 'COL-03', tipoMadera: 'Pino Radiata', volumenTotal: 900, volumenDisponible: 900 },
-  ];
-  const seedLineas = [
-    { nombre: 'Línea 1 · Descortezado', consumoAcumulado: 0 },
-    { nombre: 'Línea 2 · Astillado', consumoAcumulado: 0 },
-    { nombre: 'Línea 3 · Aserradero', consumoAcumulado: 0 },
-    { nombre: 'Línea 4 · Biomasa', consumoAcumulado: 0 },
-  ];
+  if (tractores.length === 0) {
+    const seedTractores = [
+      { nombre: 'Tractor 07', patente: 'TR-07', capacidad: 35, estado: 'disponible' },
+      { nombre: 'Tractor 12', patente: 'TR-12', capacidad: 40, estado: 'disponible' },
+      { nombre: 'Tractor 03', patente: 'TR-03', capacidad: 30, estado: 'disponible' },
+      { nombre: 'Tractor 21', patente: 'TR-21', capacidad: 38, estado: 'disponible' },
+    ];
+    for (const t of seedTractores) await add(STORES.TRACTORES, t);
+  }
 
-  for (const t of seedTractores) await add(STORES.TRACTORES, t);
-  for (const c of seedColumnas) await add(STORES.COLUMNAS, c);
-  for (const l of seedLineas) await add(STORES.LINEAS, l);
+  if (columnas.length === 0) {
+    const seedColumnas = [
+      { nombre: 'COL-01', tipoMadera: 'Pino Radiata', volumenTotal: 800, volumenDisponible: 620 },
+      { nombre: 'COL-02', tipoMadera: 'Eucalipto', volumenTotal: 650, volumenDisponible: 410 },
+      { nombre: 'COL-03', tipoMadera: 'Pino Radiata', volumenTotal: 900, volumenDisponible: 900 },
+    ];
+    for (const c of seedColumnas) await add(STORES.COLUMNAS, c);
+  }
+
+  if (lineas.length === 0) {
+    const seedLineas = [
+      { nombre: 'Línea 1 · Descortezado', consumoAcumulado: 0 },
+      { nombre: 'Línea 2 · Astillado', consumoAcumulado: 0 },
+      { nombre: 'Línea 3 · Aserradero', consumoAcumulado: 0 },
+      { nombre: 'Línea 4 · Biomasa', consumoAcumulado: 0 },
+    ];
+    for (const l of seedLineas) await add(STORES.LINEAS, l);
+  }
+
+  if (productos.length === 0) {
+    const seedProductos = [
+      { nombre: 'Pino Trozo Aserrable', mr: 1.000, factor: 0.700, m3ssc: 0.700 },
+      { nombre: 'Eucalipto Pulpable', mr: 1.000, factor: 0.650, m3ssc: 0.650 },
+    ];
+    for (const p of seedProductos) await add(STORES.PRODUCTOS, p);
+  }
 }
 
 // Folio 100% local — no depende de consultar al servidor (funciona sin señal).
