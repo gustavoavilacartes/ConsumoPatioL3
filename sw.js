@@ -4,7 +4,7 @@
 // Usa rutas relativas al scope del SW para funcionar tanto en la raíz de un
 // dominio como en un subpath de GitHub Pages (usuario.github.io/repo/).
 // ============================================================================
-const CACHE_NAME = 'patio-arauco-v5';
+const CACHE_NAME = 'patio-arauco-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -23,6 +23,7 @@ const ASSETS_TO_CACHE = [
   './js/views/recursos.js',
   './js/views/reportes.js',
   './manifest.json',
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js',
 ];
 
 self.addEventListener('install', (event) => {
