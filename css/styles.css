@@ -250,3 +250,29 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
 .resource-table .table-actions { display: flex; gap: 0.5rem; white-space: nowrap; }
 .resource-table input { min-width: 90px; }
 .row-editing td { background: rgba(232,147,59,0.06); }
+
+
+
+
+/* ===== WIZARD DE CARGA (fichas táctiles) ===== */
+.wizard-step-title { font-size: 0.95rem; margin: 1rem 0 0.9rem; color: var(--ambar-400); }
+.wizard-selected {
+  display: inline-block; font-family: var(--font-mono); font-size: 0.85rem;
+  color: var(--crema-200); opacity: 0.85; margin-right: 0.75rem; margin-bottom: 0.5rem;
+}
+
+.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; }
+.tile {
+  background: var(--verde-900); border: 2px solid var(--verde-600); border-radius: var(--radius);
+  padding: 1rem 0.9rem; text-align: left; cursor: pointer; transition: all 0.15s ease;
+  display: flex; flex-direction: column; gap: 0.25rem; min-height: 84px;
+}
+.tile:hover:not(.tile-disabled) { border-color: var(--ambar-500); background: var(--verde-800); transform: translateY(-2px); }
+.tile:active:not(.tile-disabled) { transform: translateY(0); }
+.tile-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--crema-100); }
+.tile-sub { font-size: 0.82rem; color: var(--ambar-400); }
+.tile-meta { font-size: 0.78rem; opacity: 0.65; }
+.tile-warn { font-size: 0.72rem; color: var(--rojo-500); }
+.tile-disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--verde-700); }
+
+.wizard .btn-sm { margin-bottom: 0.75rem; }
