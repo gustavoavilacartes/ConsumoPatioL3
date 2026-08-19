@@ -1,5 +1,6 @@
+
 // ============================================================================
-// views/recursos.js — CRUD de Tractores y Columnas. Líneas: fijas (4).
+// views/recursos.js — CRUD de Tractores, Columnas y Líneas de destino.
 // ============================================================================
 import { DB } from '../db.js';
 import { fmtM3, toast, el } from '../utils.js';
@@ -10,10 +11,10 @@ export async function renderRecursos(root) {
   root.innerHTML = '';
   root.appendChild(el('div', { class: 'view-header' }, [
     el('h2', {}, 'Recursos Maestros'),
-    el('p', { class: 'view-sub' }, 'Flota de tractores y columnas de cancha. Las líneas de destino son 4 y están fijas en el circuito.'),
+    el('p', { class: 'view-sub' }, 'Flota de tractores, columnas de cancha y líneas de destino. Todo editable — puedes agregar o quitar recursos según cambie la operación.'),
   ]));
 
-  const tabs = el('div', { class: 'tabs' }, [tabBtn('tractores', 'Tractores'), tabBtn('columnas', 'Columnas'), tabBtn('lineas', 'Líneas (fijas)')]);
+  const tabs = el('div', { class: 'tabs' }, [tabBtn('tractores', 'Tractores'), tabBtn('columnas', 'Columnas'), tabBtn('lineas', 'Líneas')]);
   root.appendChild(tabs);
   const body = el('div', { id: 'recursos-body' });
   root.appendChild(body);
@@ -91,13 +92,27 @@ async function renderColumnas(body) {
 async function renderLineas(body) {
   const lineas = await DB.getAll(DB.STORES.LINEAS);
   body.innerHTML = '';
-  body.appendChild(el('p', { class: 'view-sub', style: 'margin-bottom:1rem' }, 'El circuito opera con 4 líneas fijas de destino.'));
+  const form = el('form', { class: 'panel form-grid' });
+  form.appendChild(field('linea-nombre', 'text', 'Nombre de línea'));
+  form.appendChild(el('button', { type: 'submit', class: 'btn btn-primary' }, 'Agregar línea'));
+  body.appendChild(form);
+
   const grid = el('div', { class: 'card-grid' });
   lineas.forEach(l => grid.appendChild(el('div', { class: 'card card-recurso' }, [
     el('div', { class: 'card-main' }, l.nombre),
     el('div', { class: 'card-meta' }, `Consumo acumulado: ${fmtM3(l.consumoAcumulado)}`),
+    el('button', { class: 'btn btn-danger btn-sm', onclick: async () => { await DB.remove(DB.STORES.LINEAS, l.id); renderLineas(body); } }, 'Eliminar'),
   ])));
   body.appendChild(grid);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nombre = document.getElementById('linea-nombre').value;
+    if (!nombre) return;
+    await DB.add(DB.STORES.LINEAS, { nombre, consumoAcumulado: 0 });
+    toast('Línea agregada', 'success');
+    renderLineas(body);
+  });
 }
 
 function field(id, type, label, step) {
