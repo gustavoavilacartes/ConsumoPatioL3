@@ -54,7 +54,7 @@ export async function renderReportes(root) {
     const rows = viajes.map(v => ({
       Folio: v.folio, Tractor: v.tractorNombre, Columna: v.columnaNombre, Tipo: v.tipoMadera,
       Linea: v.lineaNombre, VolumenCarga: v.volumenCarga, VolumenDescarga: v.volumenDescarga,
-      HoraCarga: v.horaCarga, HoraTransito: v.horaTransito, HoraDescarga: v.horaDescarga,
+      HoraCarga: fmtHora(v.horaCarga), HoraTransito: fmtHora(v.horaTransito), HoraDescarga: fmtHora(v.horaDescarga),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
