@@ -142,22 +142,27 @@ async function saveTractor(t, nombre, patente, body) {
 // ---- Columnas -------------------------------------------------------------------
 
 async function renderColumnas(body) {
-  const columnas = await DB.getAll(DB.STORES.COLUMNAS);
+  const [columnas, productos] = await Promise.all([DB.getAll(DB.STORES.COLUMNAS), DB.getAll(DB.STORES.PRODUCTOS)]);
   body.innerHTML = '';
   const form = el('form', { class: 'panel form-grid' });
   form.appendChild(field('col-nombre', 'text', 'Nombre / ID'));
   form.appendChild(field('col-tipo', 'text', 'Tipo de madera'));
   form.appendChild(field('col-volumen', 'number', 'Volumen total (m³)', '0.1'));
-  form.appendChild(el('button', { type: 'submit', class: 'btn btn-primary' }, 'Agregar columna'));
+  const productoSel = el('select', { id: 'col-producto', required: 'true' }, [
+    el('option', { value: '' }, productos.length ? '-- Selecciona producto --' : 'Sin productos (crea uno en la pestaña Productos)'),
+    ...productos.map(p => el('option', { value: p.id }, `${p.nombre} · M3SSC ${fmtM3(p.m3ssc)}`)),
+  ]);
+  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Producto de esta columna'), productoSel]));
+  form.appendChild(el('button', { type: 'submit', class: 'btn btn-primary', disabled: productos.length ? null : 'true' }, 'Agregar columna'));
   body.appendChild(form);
 
   body.appendChild(viewToggle('columnas', body, renderColumnas));
 
   if (viewMode.columnas === 'table') {
-    body.appendChild(columnasTable(columnas, body));
+    body.appendChild(columnasTable(columnas, productos, body));
   } else {
     const grid = el('div', { class: 'card-grid' });
-    columnas.forEach(c => grid.appendChild(editState.columnas === c.id ? columnaEditCard(c, body) : columnaViewCard(c, body)));
+    columnas.forEach(c => grid.appendChild(editState.columnas === c.id ? columnaEditCard(c, productos, body) : columnaViewCard(c, body)));
     body.appendChild(grid);
   }
 
@@ -166,8 +171,10 @@ async function renderColumnas(body) {
     const nombre = document.getElementById('col-nombre').value;
     const tipo = document.getElementById('col-tipo').value;
     const volumen = parseFloat(document.getElementById('col-volumen').value);
-    if (!nombre || !tipo || !volumen) return;
-    await DB.add(DB.STORES.COLUMNAS, { nombre, tipoMadera: tipo, volumenTotal: volumen, volumenDisponible: volumen });
+    const productoId = productoSel.value;
+    if (!nombre || !tipo || !volumen || !productoId) return;
+    const producto = productos.find(p => p.id === productoId);
+    await DB.add(DB.STORES.COLUMNAS, { nombre, tipoMadera: tipo, volumenTotal: volumen, volumenDisponible: volumen, productoId, productoNombre: producto.nombre });
     toast('Columna agregada', 'success');
     renderColumnas(body);
   });
@@ -176,7 +183,7 @@ async function renderColumnas(body) {
 function columnaViewCard(c, body) {
   return el('div', { class: 'card card-recurso' }, [
     el('div', { class: 'card-main' }, c.nombre),
-    el('div', { class: 'card-meta' }, `${c.tipoMadera} · disp. ${fmtM3(c.volumenDisponible)} / ${fmtM3(c.volumenTotal)}`),
+    el('div', { class: 'card-meta' }, `${c.productoNombre || 'Sin producto'} · disp. ${fmtM3(c.volumenDisponible)} / ${fmtM3(c.volumenTotal)}`),
     el('div', { class: 'card-action' }, [
       el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.columnas = c.id; renderColumnas(body); } }, 'Editar'),
       el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: async () => { await DB.remove(DB.STORES.COLUMNAS, c.id); renderColumnas(body); } }, 'Eliminar'),
@@ -184,28 +191,30 @@ function columnaViewCard(c, body) {
   ]);
 }
 
-function columnaEditCard(c, body) {
+function columnaEditCard(c, productos, body) {
   const nombreI = el('input', { value: c.nombre });
   const tipoI = el('input', { value: c.tipoMadera });
   const totalI = el('input', { type: 'number', step: '0.1', value: c.volumenTotal });
   const dispI = el('input', { type: 'number', step: '0.1', value: c.volumenDisponible });
+  const productoSel = el('select', {}, productos.map(p => el('option', { value: p.id, selected: p.id === c.productoId ? 'true' : null }, `${p.nombre} · M3SSC ${fmtM3(p.m3ssc)}`)));
   return el('div', { class: 'card card-recurso card-editing' }, [
     el('div', { class: 'field' }, [el('label', {}, 'Nombre / ID'), nombreI]),
     el('div', { class: 'field' }, [el('label', {}, 'Tipo de madera'), tipoI]),
     el('div', { class: 'field' }, [el('label', {}, 'Volumen total (m³)'), totalI]),
     el('div', { class: 'field' }, [el('label', {}, 'Volumen disponible (m³)'), dispI]),
+    el('div', { class: 'field' }, [el('label', {}, 'Producto de esta columna'), productoSel]),
     el('div', { class: 'card-action' }, [
-      el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: async () => { await saveColumna(c, nombreI.value, tipoI.value, totalI.value, dispI.value, body); } }, 'Guardar'),
+      el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: async () => { await saveColumna(c, nombreI.value, tipoI.value, totalI.value, dispI.value, productoSel.value, productos, body); } }, 'Guardar'),
       el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.columnas = null; renderColumnas(body); } }, 'Cancelar'),
     ]),
   ]);
 }
 
-function columnasTable(columnas, body) {
+function columnasTable(columnas, productos, body) {
   const table = el('table', { class: 'report-table resource-table' });
-  table.appendChild(el('thead', {}, el('tr', {}, ['Nombre', 'Tipo', 'Disponible', 'Total', 'Acciones'].map(h => el('th', {}, h)))));
+  table.appendChild(el('thead', {}, el('tr', {}, ['Nombre', 'Producto', 'Disponible', 'Total', 'Acciones'].map(h => el('th', {}, h)))));
   const tbody = el('tbody');
-  columnas.forEach(c => tbody.appendChild(editState.columnas === c.id ? columnaEditRow(c, body) : columnaViewRow(c, body)));
+  columnas.forEach(c => tbody.appendChild(editState.columnas === c.id ? columnaEditRow(c, productos, body) : columnaViewRow(c, body)));
   table.appendChild(tbody);
   return table;
 }
@@ -213,7 +222,7 @@ function columnasTable(columnas, body) {
 function columnaViewRow(c, body) {
   return el('tr', {}, [
     el('td', {}, c.nombre),
-    el('td', {}, c.tipoMadera),
+    el('td', {}, c.productoNombre || 'Sin producto'),
     el('td', {}, fmtM3(c.volumenDisponible)),
     el('td', {}, fmtM3(c.volumenTotal)),
     el('td', { class: 'table-actions' }, [
@@ -223,28 +232,30 @@ function columnaViewRow(c, body) {
   ]);
 }
 
-function columnaEditRow(c, body) {
+function columnaEditRow(c, productos, body) {
   const nombreI = el('input', { value: c.nombre });
   const tipoI = el('input', { value: c.tipoMadera });
   const totalI = el('input', { type: 'number', step: '0.1', value: c.volumenTotal });
   const dispI = el('input', { type: 'number', step: '0.1', value: c.volumenDisponible });
+  const productoSel = el('select', {}, productos.map(p => el('option', { value: p.id, selected: p.id === c.productoId ? 'true' : null }, p.nombre)));
   return el('tr', { class: 'row-editing' }, [
     el('td', {}, nombreI),
-    el('td', {}, tipoI),
+    el('td', {}, productoSel),
     el('td', {}, dispI),
     el('td', {}, totalI),
     el('td', { class: 'table-actions' }, [
-      el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: async () => { await saveColumna(c, nombreI.value, tipoI.value, totalI.value, dispI.value, body); } }, 'Guardar'),
+      el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: async () => { await saveColumna(c, nombreI.value, tipoI.value, totalI.value, dispI.value, productoSel.value, productos, body); } }, 'Guardar'),
       el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { editState.columnas = null; renderColumnas(body); } }, 'Cancelar'),
     ]),
   ]);
 }
 
-async function saveColumna(c, nombre, tipo, totalStr, dispStr, body) {
+async function saveColumna(c, nombre, tipo, totalStr, dispStr, productoId, productos, body) {
   const volumenTotal = parseFloat(totalStr);
   const volumenDisponible = parseFloat(dispStr);
-  if (!nombre || !tipo || !volumenTotal || volumenDisponible < 0) { toast('Revisa los campos', 'error'); return; }
-  await DB.put(DB.STORES.COLUMNAS, { ...c, nombre, tipoMadera: tipo, volumenTotal, volumenDisponible });
+  if (!nombre || !tipo || !volumenTotal || volumenDisponible < 0 || !productoId) { toast('Revisa los campos', 'error'); return; }
+  const producto = productos.find(p => p.id === productoId);
+  await DB.put(DB.STORES.COLUMNAS, { ...c, nombre, tipoMadera: tipo, volumenTotal, volumenDisponible, productoId, productoNombre: producto.nombre });
   editState.columnas = null;
   toast('Columna actualizada', 'success');
   renderColumnas(body);
