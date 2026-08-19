@@ -90,10 +90,10 @@ async function seedIfEmpty() {
 
   if (tractores.length === 0) {
     const seedTractores = [
-      { nombre: 'Tractor 07', patente: 'TR-07', capacidad: 35, estado: 'disponible' },
-      { nombre: 'Tractor 12', patente: 'TR-12', capacidad: 40, estado: 'disponible' },
-      { nombre: 'Tractor 03', patente: 'TR-03', capacidad: 30, estado: 'disponible' },
-      { nombre: 'Tractor 21', patente: 'TR-21', capacidad: 38, estado: 'disponible' },
+      { nombre: 'Tractor 07', patente: 'TR-07', estado: 'disponible' },
+      { nombre: 'Tractor 12', patente: 'TR-12', estado: 'disponible' },
+      { nombre: 'Tractor 03', patente: 'TR-03', estado: 'disponible' },
+      { nombre: 'Tractor 21', patente: 'TR-21', estado: 'disponible' },
     ];
     for (const t of seedTractores) await add(STORES.TRACTORES, t);
   }
