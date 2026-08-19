@@ -81,11 +81,11 @@ async function remove(storeName, id) {
 //      tenían datos reciban igual las tablas nuevas, como Productos) ------------
 
 async function seedIfEmpty() {
-  const [tractores, columnas, lineas, productos] = await Promise.all([
+  const [tractores, productos, columnas, lineas] = await Promise.all([
     LocalDB.mirrorGetAll(STORES.TRACTORES),
+    LocalDB.mirrorGetAll(STORES.PRODUCTOS),
     LocalDB.mirrorGetAll(STORES.COLUMNAS),
     LocalDB.mirrorGetAll(STORES.LINEAS),
-    LocalDB.mirrorGetAll(STORES.PRODUCTOS),
   ]);
 
   if (tractores.length === 0) {
@@ -98,11 +98,22 @@ async function seedIfEmpty() {
     for (const t of seedTractores) await add(STORES.TRACTORES, t);
   }
 
-  if (columnas.length === 0) {
+  // Productos se siembra ANTES que columnas: las columnas de ejemplo
+  // necesitan un producto ya creado para poder enlazarse a él.
+  let productoAserrable = productos.find((p) => p.nombre === 'Pino Trozo Aserrable');
+  let productoPulpable = productos.find((p) => p.nombre === 'Eucalipto Pulpable');
+  if (productos.length === 0) {
+    const idAserrable = await add(STORES.PRODUCTOS, { nombre: 'Pino Trozo Aserrable', mr: 1.000, factor: 0.700, m3ssc: 0.700 });
+    const idPulpable = await add(STORES.PRODUCTOS, { nombre: 'Eucalipto Pulpable', mr: 1.000, factor: 0.650, m3ssc: 0.650 });
+    productoAserrable = { id: idAserrable, nombre: 'Pino Trozo Aserrable' };
+    productoPulpable = { id: idPulpable, nombre: 'Eucalipto Pulpable' };
+  }
+
+  if (columnas.length === 0 && productoAserrable && productoPulpable) {
     const seedColumnas = [
-      { nombre: 'COL-01', tipoMadera: 'Pino Radiata', volumenTotal: 800, volumenDisponible: 620 },
-      { nombre: 'COL-02', tipoMadera: 'Eucalipto', volumenTotal: 650, volumenDisponible: 410 },
-      { nombre: 'COL-03', tipoMadera: 'Pino Radiata', volumenTotal: 900, volumenDisponible: 900 },
+      { nombre: 'COL-01', tipoMadera: 'Pino Radiata', volumenTotal: 800, volumenDisponible: 620, productoId: productoAserrable.id, productoNombre: productoAserrable.nombre },
+      { nombre: 'COL-02', tipoMadera: 'Eucalipto', volumenTotal: 650, volumenDisponible: 410, productoId: productoPulpable.id, productoNombre: productoPulpable.nombre },
+      { nombre: 'COL-03', tipoMadera: 'Pino Radiata', volumenTotal: 900, volumenDisponible: 900, productoId: productoAserrable.id, productoNombre: productoAserrable.nombre },
     ];
     for (const c of seedColumnas) await add(STORES.COLUMNAS, c);
   }
@@ -116,14 +127,6 @@ async function seedIfEmpty() {
     ];
     for (const l of seedLineas) await add(STORES.LINEAS, l);
   }
-
-  if (productos.length === 0) {
-    const seedProductos = [
-      { nombre: 'Pino Trozo Aserrable', mr: 1.000, factor: 0.700, m3ssc: 0.700 },
-      { nombre: 'Eucalipto Pulpable', mr: 1.000, factor: 0.650, m3ssc: 0.650 },
-    ];
-    for (const p of seedProductos) await add(STORES.PRODUCTOS, p);
-  }
 }
 
 // Folio 100% local — no depende de consultar al servidor (funciona sin señal).
@@ -135,8 +138,6 @@ async function nextFolio() {
 }
 
 function subscribeRealtime(onChange) {
-  // El motor de sync ya escucha Realtime + cambios locales; solo reenviamos
-  // el aviso a quien llamó (app.js) para que refresque la vista actual.
   return onDataChange(onChange);
 }
 
