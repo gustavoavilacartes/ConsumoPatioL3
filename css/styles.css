@@ -234,3 +234,19 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
   font-family: var(--font-mono); font-size: 0.9rem;
 }
 
+
+
+
+/* ===== TOGGLE VISTA TARJETAS / TABLA (Recursos) ===== */
+.view-toggle { display: flex; gap: 0.4rem; margin: 1rem 0; }
+.view-toggle-btn {
+  background: var(--verde-900); border: 1px solid var(--verde-600); color: var(--crema-200);
+  font-family: var(--font-display); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em;
+  padding: 0.4rem 0.85rem; border-radius: var(--radius);
+}
+.view-toggle-btn.active { background: var(--verde-600); color: var(--crema-100); border-color: var(--verde-500); }
+
+.resource-table td, .resource-table th { vertical-align: middle; }
+.resource-table .table-actions { display: flex; gap: 0.5rem; white-space: nowrap; }
+.resource-table input { min-width: 90px; }
+.row-editing td { background: rgba(232,147,59,0.06); }
