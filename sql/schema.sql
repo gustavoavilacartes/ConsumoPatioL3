@@ -1,22 +1,20 @@
 -- ============================================================================
--- Patio Madera ARAUCO — Schema Supabase (v3 · + Productos)
+-- Patio Madera ARAUCO — Schema Supabase (v4 · Columna con Producto fijo)
 --
 -- ⚠️ ESTE SCRIPT BORRA Y RECREA LAS TABLAS. Vuelve a ejecutar TODO el script
 -- en: Supabase Dashboard → SQL Editor → New query → Run
 --
--- Novedad v3: tabla "productos" (PRODUCTO / MR / FACTOR / M3SSC). El volumen
--- que se carga en un tractor ya no se escribe a mano: se elige un producto,
--- y el volumen es su M3SSC = MR × FACTOR (calculado, no editable a mano).
--- Los tractores YA NO tienen capacidad propia — la carga la determina el
--- producto elegido.
+-- Novedad v4: cada columna tiene un PRODUCTO fijo asociado (definido acá al
+-- crear/editar la columna). Al cargar un tractor, elegir la columna ya trae
+-- el producto (y su M3SSC) automáticamente — no se elige por separado.
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
 
 drop table if exists viajes cascade;
+drop table if exists columnas cascade;
 drop table if exists productos cascade;
 drop table if exists tractores cascade;
-drop table if exists columnas cascade;
 drop table if exists lineas cascade;
 
 -- ---- TABLAS -----------------------------------------------------------------
@@ -30,12 +28,26 @@ create table tractores (
   created_at timestamptz not null default now()
 );
 
+-- Maestro de productos: PRODUCTO / MR / FACTOR / M3SSC (calculado = MR × FACTOR)
+create table productos (
+  id uuid primary key default gen_random_uuid(),
+  producto text not null,
+  mr numeric(10,3) not null,
+  factor numeric(10,3) not null,
+  m3ssc numeric(10,3) not null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+-- Cada columna tiene UN producto fijo (elegido al crearla/editarla en Recursos).
 create table columnas (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   tipo_madera text not null,
   volumen_total numeric not null,
   volumen_disponible numeric not null,
+  producto_id uuid references productos(id) on delete set null,
+  producto_nombre text,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -44,17 +56,6 @@ create table lineas (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   consumo_acumulado numeric not null default 0,
-  updated_at timestamptz not null default now(),
-  created_at timestamptz not null default now()
-);
-
--- Maestro de productos: PRODUCTO / MR / FACTOR / M3SSC (calculado = MR × FACTOR)
-create table productos (
-  id uuid primary key default gen_random_uuid(),
-  producto text not null,
-  mr numeric(10,3) not null,
-  factor numeric(10,3) not null,
-  m3ssc numeric(10,3) not null,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -91,15 +92,20 @@ create index idx_viajes_fecha on viajes(fecha_carga);
 -- ---- ROW LEVEL SECURITY -------------------------------------------------------
 
 alter table tractores enable row level security;
+alter table productos enable row level security;
 alter table columnas enable row level security;
 alter table lineas enable row level security;
-alter table productos enable row level security;
 alter table viajes enable row level security;
 
 create policy "auth read tractores" on tractores for select using (auth.role() = 'authenticated');
 create policy "auth write tractores" on tractores for insert with check (auth.role() = 'authenticated');
 create policy "auth update tractores" on tractores for update using (auth.role() = 'authenticated');
 create policy "auth delete tractores" on tractores for delete using (auth.role() = 'authenticated');
+
+create policy "auth read productos" on productos for select using (auth.role() = 'authenticated');
+create policy "auth write productos" on productos for insert with check (auth.role() = 'authenticated');
+create policy "auth update productos" on productos for update using (auth.role() = 'authenticated');
+create policy "auth delete productos" on productos for delete using (auth.role() = 'authenticated');
 
 create policy "auth read columnas" on columnas for select using (auth.role() = 'authenticated');
 create policy "auth write columnas" on columnas for insert with check (auth.role() = 'authenticated');
@@ -111,11 +117,6 @@ create policy "auth write lineas" on lineas for insert with check (auth.role() =
 create policy "auth update lineas" on lineas for update using (auth.role() = 'authenticated');
 create policy "auth delete lineas" on lineas for delete using (auth.role() = 'authenticated');
 
-create policy "auth read productos" on productos for select using (auth.role() = 'authenticated');
-create policy "auth write productos" on productos for insert with check (auth.role() = 'authenticated');
-create policy "auth update productos" on productos for update using (auth.role() = 'authenticated');
-create policy "auth delete productos" on productos for delete using (auth.role() = 'authenticated');
-
 create policy "auth read viajes" on viajes for select using (auth.role() = 'authenticated');
 create policy "auth write viajes" on viajes for insert with check (auth.role() = 'authenticated');
 create policy "auth update viajes" on viajes for update using (auth.role() = 'authenticated');
@@ -123,9 +124,9 @@ create policy "auth update viajes" on viajes for update using (auth.role() = 'au
 -- ---- REALTIME -----------------------------------------------------------------
 
 alter publication supabase_realtime add table tractores;
+alter publication supabase_realtime add table productos;
 alter publication supabase_realtime add table columnas;
 alter publication supabase_realtime add table lineas;
-alter publication supabase_realtime add table productos;
 alter publication supabase_realtime add table viajes;
 
 -- ---- SEED (datos de ejemplo) -----------------------------------------
@@ -136,17 +137,19 @@ insert into tractores (nombre, patente, estado) values
   ('Tractor 03', 'TR-03', 'disponible'),
   ('Tractor 21', 'TR-21', 'disponible');
 
-insert into columnas (nombre, tipo_madera, volumen_total, volumen_disponible) values
-  ('COL-01', 'Pino Radiata', 800, 620),
-  ('COL-02', 'Eucalipto', 650, 410),
-  ('COL-03', 'Pino Radiata', 900, 900);
+insert into productos (producto, mr, factor, m3ssc) values
+  ('Pino Trozo Aserrable', 1.000, 0.700, 0.700),
+  ('Eucalipto Pulpable', 1.000, 0.650, 0.650);
+
+insert into columnas (nombre, tipo_madera, volumen_total, volumen_disponible, producto_id, producto_nombre)
+  select 'COL-01', 'Pino Radiata', 800, 620, id, producto from productos where producto = 'Pino Trozo Aserrable';
+insert into columnas (nombre, tipo_madera, volumen_total, volumen_disponible, producto_id, producto_nombre)
+  select 'COL-02', 'Eucalipto', 650, 410, id, producto from productos where producto = 'Eucalipto Pulpable';
+insert into columnas (nombre, tipo_madera, volumen_total, volumen_disponible, producto_id, producto_nombre)
+  select 'COL-03', 'Pino Radiata', 900, 900, id, producto from productos where producto = 'Pino Trozo Aserrable';
 
 insert into lineas (nombre, consumo_acumulado) values
   ('Línea 1 · Descortezado', 0),
   ('Línea 2 · Astillado', 0),
   ('Línea 3 · Aserradero', 0),
   ('Línea 4 · Biomasa', 0);
-
-insert into productos (producto, mr, factor, m3ssc) values
-  ('Pino Trozo Aserrable', 1.000, 0.700, 0.700),
-  ('Eucalipto Pulpable', 1.000, 0.650, 0.650);
