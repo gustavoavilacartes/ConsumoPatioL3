@@ -67,9 +67,15 @@ function initSyncBadge() {
 
 async function boot() {
   await ensureAuthenticated();
+
+  // Si hay señal, traemos primero el estado REAL de la nube antes de decidir
+  // si hace falta sembrar datos de ejemplo — así evitamos crear tractores
+  // duplicados cada vez que se abre la app en un dispositivo/navegador nuevo
+  // (o después de borrar datos locales) cuando Supabase ya tenía info.
   if (navigator.onLine) {
     await pullAll();
   }
+
   try {
     await DB.seedIfEmpty();
   } catch (err) {
