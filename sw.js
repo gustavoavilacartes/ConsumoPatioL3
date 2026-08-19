@@ -30,4 +30,59 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       const urls = ASSETS_TO_CACHE.map((p) => new URL(p, self.registration.scope).toString());
       // Cada URL se cachea por separado: si una falla (ej. el CDN de Excel
-      // no responde justo en ese momento),
+      // no responde justo en ese momento), NO debe tumbar la instalación de
+      // toda la app — solo se omite esa URL y se reintenta más adelante en
+      // tiempo de ejecución (ver el handler de 'fetch' más abajo).
+      await Promise.all(urls.map((url) =>
+        cache.add(url).catch((err) => {
+          console.warn('SW: no se pudo precachear (se omite):', url, err.message);
+        })
+      ));
+    }).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+
+  const isExternal = !request.url.startsWith(self.location.origin);
+
+  if (isExternal) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+          return res;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+          }
+          return res;
+        })
+        .catch(() => new Response('Offline - recurso no disponible', {
+          status: 503, headers: { 'Content-Type': 'text/plain' },
+        }));
+    })
+  );
+});
