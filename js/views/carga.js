@@ -26,7 +26,7 @@ export async function renderCarga(root) {
   const form = el('form', { class: 'panel form-grid', id: 'form-carga' });
   const tractorSel = el('select', { id: 'carga-tractor', required: 'true' }, [
     el('option', { value: '' }, tractoresDisp.length ? '-- Selecciona tractor disponible --' : 'Sin tractores disponibles'),
-    ...tractoresDisp.map(t => el('option', { value: t.id }, `${t.nombre} · cap. ${t.capacidad} m³`)),
+    ...tractoresDisp.map(t => el('option', { value: t.id }, `${t.nombre} · ${t.patente}`)),
   ]);
   const columnaSel = el('select', { id: 'carga-columna', required: 'true' }, [
     el('option', { value: '' }, '-- Selecciona columna --'),
@@ -70,10 +70,7 @@ export async function renderCarga(root) {
       toast(`El M3SSC de ${producto.nombre} (${fmtM3(volumen)}) supera el disponible en ${columna.nombre} (${fmtM3(columna.volumenDisponible)})`, 'error');
       return;
     }
-    if (volumen > tractor.capacidad) {
-      toast(`El M3SSC de ${producto.nombre} (${fmtM3(volumen)}) supera la capacidad de ${tractor.nombre} (${fmtM3(tractor.capacidad)})`, 'error');
-      return;
-    }
+    
 
     const folio = await DB.nextFolio();
     const iso = new Date().toISOString();
