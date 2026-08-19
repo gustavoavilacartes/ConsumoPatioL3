@@ -48,7 +48,7 @@ async function refreshPendingCount() {
 
 // ---- Pull: trae los 4 conjuntos de datos desde Supabase ----------------------
 
-async function pullAll() {
+export async function pullAll() {
   if (!navigator.onLine) return false;
   try {
     const outbox = await LocalDB.outboxGetAll();
