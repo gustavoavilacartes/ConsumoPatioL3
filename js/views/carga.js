@@ -1,11 +1,19 @@
-
 // ============================================================================
-// views/carga.js — Módulo 1: CARGA (grúa carga tractor en columna con un producto)
-// El volumen ya no se escribe a mano: se elige el Producto, y el volumen
-// cargado es su M3SSC (MR × FACTOR), definido en Recursos → Productos.
+// views/carga.js — Módulo 1: CARGA (grúa carga tractor en columna)
+//
+// Flujo en 3 pasos con fichas táctiles (pensado para digitar en terreno
+// desde celular/tablet, sin listas desplegables):
+//   Paso 1: tocar el tractor disponible
+//   Paso 2: tocar la columna de origen — su producto (M3SSC) ya viene fijo,
+//           no se elige por separado
+//   Paso 3: confirmar (con observación opcional) y registrar
 // ============================================================================
 import { DB } from '../db.js';
 import { fmtM3, fmtHora, toast, el } from '../utils.js';
+
+// Estado del wizard (persiste mientras la app sigue abierta; se resetea al
+// completar una carga o al usar los botones "Cambiar").
+const wizard = { step: 'tractor', tractor: null, columna: null, producto: null };
 
 export async function renderCarga(root) {
   const [columnas, tractores, productos] = await Promise.all([
@@ -20,77 +28,142 @@ export async function renderCarga(root) {
   root.innerHTML = '';
   root.appendChild(el('div', { class: 'view-header' }, [
     el('h2', {}, '01 · Carga — Grúa carga Tractor en Columna'),
-    el('p', { class: 'view-sub' }, 'La grúa de cancha carga un tractor disponible con un producto de una columna. El volumen cargado sale del M3SSC del producto elegido.'),
+    el('p', { class: 'view-sub' }, 'Toca el tractor, luego la columna de origen. El producto y el volumen se completan solos.'),
   ]));
 
-  const form = el('form', { class: 'panel form-grid', id: 'form-carga' });
-  const tractorSel = el('select', { id: 'carga-tractor', required: 'true' }, [
-    el('option', { value: '' }, tractoresDisp.length ? '-- Selecciona tractor disponible --' : 'Sin tractores disponibles'),
-    ...tractoresDisp.map(t => el('option', { value: t.id }, `${t.nombre} · ${t.patente}`)),
-  ]);
-  const columnaSel = el('select', { id: 'carga-columna', required: 'true' }, [
-    el('option', { value: '' }, '-- Selecciona columna --'),
-    ...columnas.map(c => el('option', { value: c.id }, `${c.nombre} · ${c.tipoMadera} · disp. ${fmtM3(c.volumenDisponible)}`)),
-  ]);
-  const productoSel = el('select', { id: 'carga-producto', required: 'true' }, [
-    el('option', { value: '' }, productos.length ? '-- Selecciona producto --' : 'Sin productos definidos (ve a Recursos → Productos)'),
-    ...productos.map(p => el('option', { value: p.id }, `${p.nombre} · M3SSC ${fmtM3(p.m3ssc)}`)),
-  ]);
-
-  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Tractor'), tractorSel]));
-  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Columna origen'), columnaSel]));
-  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Producto'), productoSel]));
-  form.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Observaciones'), el('input', { type: 'text', id: 'carga-obs', placeholder: 'Opcional' })]));
-  form.appendChild(el('button', { type: 'submit', class: 'btn btn-primary', disabled: (tractoresDisp.length && productos.length) ? null : 'true' }, 'Registrar carga'));
-  root.appendChild(form);
+  const wrap = el('div', { class: 'panel wizard' });
+  if (wizard.step === 'columna') wrap.appendChild(stepColumna(columnas, productos, root));
+  else if (wizard.step === 'confirm') wrap.appendChild(stepConfirm(root));
+  else wrap.appendChild(stepTractor(tractoresDisp, root));
+  root.appendChild(wrap);
 
   root.appendChild(el('h3', { class: 'section-title' }, `Tractores cargados, esperando destino (${pendientes.length})`));
   const list = el('div', { class: 'card-grid' });
   if (pendientes.length === 0) list.appendChild(el('p', { class: 'empty' }, 'No hay tractores cargados en este momento.'));
   else pendientes.forEach(v => list.appendChild(cargaCard(v)));
   root.appendChild(list);
+}
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const tractorId = tractorSel.value;
-    const columnaId = columnaSel.value;
-    const productoId = productoSel.value;
-    const obs = document.getElementById('carga-obs').value;
-    if (!tractorId || !columnaId || !productoId) return;
+// ---- Paso 1: elegir tractor -----------------------------------------------------
 
-    const [tractor, columna, producto] = await Promise.all([
-      DB.getById(DB.STORES.TRACTORES, tractorId),
-      DB.getById(DB.STORES.COLUMNAS, columnaId),
-      DB.getById(DB.STORES.PRODUCTOS, productoId),
-    ]);
+function stepTractor(tractoresDisp, root) {
+  const wrap = el('div', {});
+  wrap.appendChild(el('h3', { class: 'wizard-step-title' }, 'Paso 1 · Toca el tractor'));
 
-    const volumen = producto.m3ssc;
+  if (tractoresDisp.length === 0) {
+    wrap.appendChild(el('p', { class: 'empty' }, 'No hay tractores disponibles en este momento.'));
+    return wrap;
+  }
 
-    if (volumen > columna.volumenDisponible) {
-      toast(`El M3SSC de ${producto.nombre} (${fmtM3(volumen)}) supera el disponible en ${columna.nombre} (${fmtM3(columna.volumenDisponible)})`, 'error');
-      return;
-    }
-    
-
-    const folio = await DB.nextFolio();
-    const iso = new Date().toISOString();
-    await DB.add(DB.STORES.VIAJES, {
-      folio, tractorId: tractor.id, tractorNombre: tractor.nombre,
-      columnaId: columna.id, columnaNombre: columna.nombre, tipoMadera: columna.tipoMadera,
-      productoId: producto.id, productoNombre: producto.nombre, mr: producto.mr, factor: producto.factor,
-      volumenCarga: volumen, lineaId: null, lineaNombre: null, volumenDescarga: null,
-      estado: 'cargado', fechaCarga: iso.split('T')[0], horaCarga: iso,
-      horaTransito: null, horaDescarga: null, observaciones: obs || '',
-    });
-
-    columna.volumenDisponible = Number((columna.volumenDisponible - volumen).toFixed(3));
-    await DB.put(DB.STORES.COLUMNAS, columna);
-    tractor.estado = 'en_viaje';
-    await DB.put(DB.STORES.TRACTORES, tractor);
-
-    toast(`${folio}: ${tractor.nombre} cargado con ${producto.nombre} (${fmtM3(volumen)}) desde ${columna.nombre}`, 'success');
-    renderCarga(root);
+  const grid = el('div', { class: 'tile-grid' });
+  tractoresDisp.forEach(t => {
+    grid.appendChild(el('button', {
+      type: 'button', class: 'tile',
+      onclick: () => { wizard.tractor = t; wizard.step = 'columna'; renderCarga(root); },
+    }, [
+      el('div', { class: 'tile-title' }, t.nombre),
+      el('div', { class: 'tile-sub' }, t.patente),
+    ]));
   });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// ---- Paso 2: elegir columna (trae el producto fijo) ------------------------------
+
+function stepColumna(columnas, productos, root) {
+  const wrap = el('div', {});
+  wrap.appendChild(el('div', { class: 'wizard-selected' }, `Tractor: ${wizard.tractor.nombre} · ${wizard.tractor.patente}`));
+  wrap.appendChild(el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm',
+    onclick: () => { wizard.step = 'tractor'; wizard.tractor = null; renderCarga(root); },
+  }, '← Cambiar tractor'));
+  wrap.appendChild(el('h3', { class: 'wizard-step-title' }, 'Paso 2 · Toca la columna de origen'));
+
+  if (columnas.length === 0) {
+    wrap.appendChild(el('p', { class: 'empty' }, 'No hay columnas registradas. Créalas en Recursos → Columnas.'));
+    return wrap;
+  }
+
+  const grid = el('div', { class: 'tile-grid' });
+  columnas.forEach(c => {
+    const producto = c.productoId ? productos.find(p => p.id === c.productoId) : null;
+    const sinProducto = !producto;
+    const insuficiente = producto && producto.m3ssc > c.volumenDisponible;
+    const disabled = sinProducto || insuficiente;
+
+    grid.appendChild(el('button', {
+      type: 'button', class: `tile ${disabled ? 'tile-disabled' : ''}`,
+      disabled: disabled ? 'true' : null,
+      onclick: disabled ? null : () => { wizard.columna = c; wizard.producto = producto; wizard.step = 'confirm'; renderCarga(root); },
+    }, [
+      el('div', { class: 'tile-title' }, c.nombre),
+      el('div', { class: 'tile-sub' }, sinProducto ? 'Sin producto asignado' : producto.nombre),
+      el('div', { class: 'tile-meta' }, `Disp. ${fmtM3(c.volumenDisponible)}`),
+      insuficiente ? el('div', { class: 'tile-warn' }, `Necesita ${fmtM3(producto.m3ssc)}`) : null,
+    ]));
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// ---- Paso 3: confirmar ------------------------------------------------------------
+
+function stepConfirm(root) {
+  const { tractor, columna, producto } = wizard;
+  const wrap = el('div', {});
+  wrap.appendChild(el('div', { class: 'wizard-selected' }, `Tractor: ${tractor.nombre} · ${tractor.patente}`));
+  wrap.appendChild(el('div', { class: 'wizard-selected' }, `Columna: ${columna.nombre} · ${producto.nombre}`));
+  wrap.appendChild(el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm',
+    onclick: () => { wizard.step = 'columna'; wizard.columna = null; wizard.producto = null; renderCarga(root); },
+  }, '← Cambiar columna'));
+  wrap.appendChild(el('h3', { class: 'wizard-step-title' }, `Paso 3 · Confirmar carga — ${fmtM3(producto.m3ssc)}`));
+
+  const obsInput = el('input', { type: 'text', id: 'carga-obs', placeholder: 'Opcional' });
+  wrap.appendChild(el('div', { class: 'field' }, [el('label', {}, 'Observaciones'), obsInput]));
+
+  const btn = el('button', { type: 'button', class: 'btn btn-primary' }, 'Registrar carga');
+  btn.addEventListener('click', () => confirmarCarga(obsInput.value, root));
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+async function confirmarCarga(obs, root) {
+  const { tractor, columna, producto } = wizard;
+  const volumen = producto.m3ssc;
+
+  if (volumen > columna.volumenDisponible) {
+    toast(`El M3SSC de ${producto.nombre} (${fmtM3(volumen)}) supera el disponible en ${columna.nombre} (${fmtM3(columna.volumenDisponible)})`, 'error');
+    return;
+  }
+
+  const folio = await DB.nextFolio();
+  const iso = new Date().toISOString();
+  await DB.add(DB.STORES.VIAJES, {
+    folio, tractorId: tractor.id, tractorNombre: tractor.nombre,
+    columnaId: columna.id, columnaNombre: columna.nombre, tipoMadera: columna.tipoMadera,
+    productoId: producto.id, productoNombre: producto.nombre, mr: producto.mr, factor: producto.factor,
+    volumenCarga: volumen, lineaId: null, lineaNombre: null, volumenDescarga: null,
+    estado: 'cargado', fechaCarga: iso.split('T')[0], horaCarga: iso,
+    horaTransito: null, horaDescarga: null, observaciones: obs || '',
+  });
+
+  const columnaFresh = await DB.getById(DB.STORES.COLUMNAS, columna.id);
+  columnaFresh.volumenDisponible = Number((columnaFresh.volumenDisponible - volumen).toFixed(3));
+  await DB.put(DB.STORES.COLUMNAS, columnaFresh);
+
+  const tractorFresh = await DB.getById(DB.STORES.TRACTORES, tractor.id);
+  tractorFresh.estado = 'en_viaje';
+  await DB.put(DB.STORES.TRACTORES, tractorFresh);
+
+  toast(`${folio}: ${tractor.nombre} cargado con ${producto.nombre} (${fmtM3(volumen)}) desde ${columna.nombre}`, 'success');
+
+  wizard.step = 'tractor';
+  wizard.tractor = null;
+  wizard.columna = null;
+  wizard.producto = null;
+  renderCarga(root);
 }
 
 function cargaCard(v) {
