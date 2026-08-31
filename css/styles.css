@@ -3,12 +3,12 @@
    ============================================================================ */
 
 :root {
-  --verde-950: #0a1712;
-  --verde-900: #0f1f16;
-  --verde-800: #16301f;
-  --verde-700: #1f4429;
-  --verde-600: #2c5c37;
-  --verde-500: #3f7d4c;
+  --verde-950: #0b100e;
+  --verde-900: #121815;
+  --verde-800: #1b2420;
+  --verde-700: #26332c;
+  --verde-600: #384b40;
+  --verde-500: #45b57e;
   --ambar-500: #e8933b;
   --ambar-400: #f2ac5c;
   --crema-100: #f3ede0;
@@ -35,7 +35,7 @@ html, body {
 body {
   background-image:
     repeating-linear-gradient(135deg, rgba(232,223,201,0.015) 0px, rgba(232,223,201,0.015) 2px, transparent 2px, transparent 14px),
-    radial-gradient(ellipse at 20% -10%, rgba(63,125,76,0.25), transparent 55%),
+    radial-gradient(ellipse at 20% -10%, rgba(69,181,126,0.14), transparent 55%),
     radial-gradient(ellipse at 100% 0%, rgba(232,147,59,0.08), transparent 45%);
   background-attachment: fixed;
 }
@@ -183,7 +183,7 @@ input:focus, select:focus { outline: none; border-color: var(--ambar-500); }
   display: flex; align-items: center; justify-content: center;
   background: var(--verde-950);
   background-image:
-    radial-gradient(ellipse at 20% -10%, rgba(63,125,76,0.3), transparent 55%),
+    radial-gradient(ellipse at 20% -10%, rgba(69,181,126,0.18), transparent 55%),
     radial-gradient(ellipse at 100% 100%, rgba(232,147,59,0.1), transparent 45%);
   padding: 1.5rem;
 }
